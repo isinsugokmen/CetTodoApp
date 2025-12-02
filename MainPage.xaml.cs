@@ -4,71 +4,100 @@ namespace CetTodoApp;
 
 public partial class MainPage : ContentPage
 {
-   
+    // YENİ: Veritabanı bağlantı nesnesi
+    TodoDatabase database;
 
     public MainPage()
     {
         InitializeComponent();
-        FakeDb.AddToDo("Test1" ,DateTime.Now.AddDays(-1));
-        FakeDb.AddToDo("Test2" ,DateTime.Now.AddDays(1));
-        FakeDb.AddToDo("Test3" ,DateTime.Now);
-        RefreshListView();
-        ;
-
-
+        
+        // YENİ: Veritabanını başlatıyoruz
+        database = new TodoDatabase();
+        
+        // NOT: FakeDb ile eklediğin test verilerini sildik çünkü veritabanı boş başlayacak
+        // veya daha önce kaydettiklerini getirecek.
     }
 
-
-    private void AddButton_OnClicked(object? sender, EventArgs e)
+    // YENİ: Uygulama açıldığında verileri yüklemek için bu metodu ekliyoruz
+    protected override async void OnAppearing()
     {
-        // --- VALIDASYON MANTIĞI BAŞLANGIÇ ---
+        base.OnAppearing();
+        await RefreshListView();
+    }
+
+    private async void AddButton_OnClicked(object? sender, EventArgs e)
+    {
+        // --- SENİN YAZDIĞIN VALIDASYON KODLARI (AYNEN KORUNDU) ---
         bool isValid = true;
         
-        // Hata etiketlerini görünmez yap (Yeni deneme için)
         TitleErrorLabel.IsVisible = false;
         DueDateErrorLabel.IsVisible = false;
 
-        // 1. Title Validasyonu (Boş Kontrolü)
+        // 1. Title Validasyonu
         if (string.IsNullOrWhiteSpace(Title.Text))
         {
             TitleErrorLabel.IsVisible = true;
             isValid = false;
         }
 
-        // 2. Due Date Validasyonu (Geçmiş Tarih Kontrolü)
+        // 2. Due Date Validasyonu
         if (DueDate.Date < DateTime.Now.Date)
         {
             DueDateErrorLabel.IsVisible = true;
             isValid = false;
         }
 
-        // Eğer herhangi bir doğrulama başarısızsa (isValid == false), metottan çık (return).
         if (!isValid)
         {
             return; 
         }
-        // --- VALIDASYON MANTIĞI BİTİŞ ---
+        // --- VALIDASYON BİTİŞ ---
 
-        // Validasyon başarılıysa, orijinal kaydetme kodu çalışır:
-        FakeDb.AddToDo(Title.Text, DueDate.Date);
+        // DEĞİŞEN KISIM: FakeDb yerine gerçek veritabanına kayıt
+        var newItem = new TodoItem
+        {
+            Title = Title.Text,
+            DueDate = DueDate.Date,
+            IsComplete = false
+        };
+
+        // Veritabanına kaydet (Async olduğu için 'await' kullanıyoruz)
+        await database.SaveItemAsync(newItem);
+
+        // Ekranı temizle
         Title.Text = string.Empty;
         DueDate.Date = DateTime.Now;
-        RefreshListView();
+
+        // Listeyi güncelle
+        await RefreshListView();
     }
 
-    private void RefreshListView()
+    // DEĞİŞEN KISIM: Verileri veritabanından çekme
+    private async Task RefreshListView()
     {
+        // FakeDb yerine veritabanından listeyi alıyoruz
+        var items = await database.GetItemsAsync();
+        
         TasksListView.ItemsSource = null;
-        TasksListView.ItemsSource = FakeDb.Data.Where(x => !x.IsComplete ||
-                                                           (x.IsComplete && x.DueDate > DateTime.Now.AddDays(-1)))
-            .ToList();
+        TasksListView.ItemsSource = items; 
     }
 
-    private void TasksListView_OnItemSelected(object? sender, SelectedItemChangedEventArgs e)
+    private async void TasksListView_OnItemSelected(object? sender, SelectedItemChangedEventArgs e)
     {
+        if (e.SelectedItem == null) return;
+
         var item = e.SelectedItem as TodoItem;
-       FakeDb.ChageCompletionStatus(item);
-       RefreshListView();
-       
+        
+        // Durumu tersine çevir (Tamamlandı/Devam Ediyor)
+        item.IsComplete = !item.IsComplete;
+
+        // DEĞİŞEN KISIM: Güncellemeyi veritabanına kaydet
+        await database.SaveItemAsync(item);
+
+        // Seçimi kaldır
+        TasksListView.SelectedItem = null;
+        
+        // Listeyi yenile
+        await RefreshListView();
     }
 }

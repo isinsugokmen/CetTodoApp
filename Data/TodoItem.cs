@@ -1,8 +1,12 @@
-﻿namespace CetTodoApp.Data;
+﻿using SQLite; // 1. EKLENDİ: SQLite kütüphanesi
+
+namespace CetTodoApp.Data;
 
 public class TodoItem
 {
+    [PrimaryKey, AutoIncrement] // 2. EKLENDİ: Veritabanı için otomatik artan ID
     public int Id {get; set;}
+    
     public string? Title {get; set;}
     public DateTime DueDate { get; set; }
     public DateTime CreatedDate {get; set;}
